@@ -1,13 +1,16 @@
 # syntax=docker/dockerfile:1.7
 ARG REGISTRY=docker.io
 
-# -- Pruner Aşaması --
+# -- DÜZELTİLMİŞ PRUNER AŞAMASI --
 FROM node:24-bookworm-slim AS pruner
 WORKDIR /app
 COPY . .
-# Not: Turbo sürümüne göre "--scope=" parametresi bazen hata verebilir, 
-# Garanti olması için standart modern kullanımı ekliyoruz:
-RUN npx turbo prune @app/condo --docker
+# Önce yarn'ı projedeki sürümüyle aktifleştirip, ardından turbo komutunu çalıştırıyoruz.
+RUN corepack enable && yarn set version berry
+# Yarn komutu olarak turbo'yu çalıştır (npx yerine)
+RUN yarn dlx turbo prune @app/condo --docker
+# -------------------------------
+
 
 FROM ${REGISTRY}/python:3.14-slim-bookworm AS python
 FROM ${REGISTRY}/node:24-bookworm-slim AS node
