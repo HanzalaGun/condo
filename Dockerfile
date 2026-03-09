@@ -56,7 +56,7 @@ RUN chmod +x ./bin/run_condo_domain_tests.sh
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
-    && yarn install --immutable --inline-builds \
+    && yarn install --inline-builds \
     && yarn build \
     && rm -rf /app/.env  \
     && rm -rf /app/.config /app/.cache /app/.docker  \
