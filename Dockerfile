@@ -53,15 +53,15 @@ RUN echo "# Build time .env config!" >> /app/.env && \
 RUN chmod +x ./bin/run_condo_domain_tests.sh
 
 # Bağımlılıkları Kur ve Derle
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
-    && yarn install --inline-builds \
+    && yarn config set networkTimeout 300000 \
+    && yarn install --immutable \
     && yarn build \
     && rm -rf /app/.env  \
-    && rm -rf /app/.config /app/.cache /app/.docker  \
     && ls -lah /app/
-
+	
 # Runtime container
 FROM base
 USER app:app
