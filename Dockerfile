@@ -34,6 +34,7 @@ RUN echo "COOKIE_SECRET=placeholder\nDATABASE_URL=placeholder\nREDIS_URL=placeho
 RUN --mount=type=cache,target=/root/.yarn/berry/cache \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
+    && echo "COOKIE_SECRET=placeholder-secret-123456789\nDATABASE_URL=postgresql://postgres:postgres@localhost:5432/condo\nREDIS_URL=redis://localhost:6379\nFILE_FIELD_ADAPTER=local" > /app/.env \
     && yarn config set nmHoistingLimits none \
     && yarn install --no-immutable \
     && yarn build \
