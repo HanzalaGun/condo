@@ -1,17 +1,5 @@
 # syntax=docker/dockerfile:1.7
 ARG REGISTRY=docker.io
-
-# -- DÜZELTİLMİŞ PRUNER AŞAMASI --
-FROM node:24-bookworm-slim AS pruner
-WORKDIR /app
-COPY . .
-# Önce yarn'ı projedeki sürümüyle aktifleştirip, ardından turbo komutunu çalıştırıyoruz.
-RUN corepack enable && yarn set version berry
-# Yarn komutu olarak turbo'yu çalıştır (npx yerine)
-RUN yarn dlx turbo prune @app/condo --docker
-# -------------------------------
-
-
 FROM ${REGISTRY}/python:3.14-slim-bookworm AS python
 FROM ${REGISTRY}/node:24-bookworm-slim AS node
 
@@ -29,28 +17,13 @@ RUN set -ex \
 	&& python --version \
 	&& pip --version \
 	&& node --version \
+	&& corepack enable \
 	&& yarn --version \
 	&& python3 -m pip install 'psycopg2-binary==2.9.10' && python3 -m pip install 'Django==5.2' \
     && echo "OK"
 
-# Installer
-FROM base AS installer
-
-WORKDIR /app
-
-# DÜZELTİLEN KISIM: 
-# out/json/ içindeki package.json'ları ve yarn.lock'ı ana dizine alıyoruz.
-COPY --chown=app:app --from=pruner /app/out/json/ /app/
-COPY --chown=app:app --from=pruner /app/out/yarn.lock /app/yarn.lock
-
-# Copy yarn berry
-COPY --chown=app:app ./.yarn /app/.yarn
-COPY --chown=app:app ./.yarnrc.yml /app/.yarnrc.yml
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
-    yarn install --immutable --inline-builds
-
-# Builder
-FROM base as builder
+# Builder (Installer ve Builder'ı birleştirdik)
+FROM base AS builder
 
 ARG TURBO_TEAM
 ARG TURBO_TOKEN
@@ -58,10 +31,11 @@ ARG TURBO_API
 ARG TURBO_REMOTE_ONLY=false
 
 WORKDIR /app
-# Copy entire repo
+
+# ----- KRİTİK DEĞİŞİKLİK -----
+# "out" klasörünü aramak yerine BÜTÜN projeyi doğrudan alıyoruz.
 COPY --chown=app:app . /app
-# Copy previously installed packages
-COPY --from=installer --chown=app:app /app /app
+# -----------------------------
 
 ENV TURBO_TEAM=$TURBO_TEAM
 ENV TURBO_TOKEN=$TURBO_TOKEN
@@ -78,11 +52,12 @@ RUN echo "# Build time .env config!" >> /app/.env && \
 
 RUN chmod +x ./bin/run_condo_domain_tests.sh
 
+# Bağımlılıkları Kur ve Derle
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
+    && yarn install --immutable --inline-builds \
     && yarn build \
-    && rm -rf /app/out \
     && rm -rf /app/.env  \
     && rm -rf /app/.config /app/.cache /app/.docker  \
     && ls -lah /app/
