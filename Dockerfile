@@ -5,11 +5,12 @@ FROM ${REGISTRY}/node:24-bookworm-slim AS node
 
 FROM ${REGISTRY}/buildpack-deps:bookworm AS base
 
+# Python ve Node.js ortamlarını birleştiriyoruz
 COPY --from=python /usr/local/ /usr/local/
 COPY --from=node /usr/local/ /usr/local/
 COPY --from=node /opt/ /opt/
 
-# Add app user/group! Clean packages and fix links! Check version! And install some extra packages!
+# Kullanıcı oluşturma ve gerekli sistem paketlerinin kurulumu
 RUN set -ex \
 	&& groupadd -r app --gid=999 \
 	&& useradd --system --create-home --home /app --gid 999 --uid=999 --shell /bin/bash app \
@@ -22,55 +23,51 @@ RUN set -ex \
 	&& python3 -m pip install 'psycopg2-binary==2.9.10' && python3 -m pip install 'Django==5.2' \
     && echo "OK"
 
-# Builder (Installer ve Builder'ı birleştirdik)
+# --- Builder Katmanı ---
 FROM base AS builder
 
 ARG TURBO_TEAM
 ARG TURBO_TOKEN
 ARG TURBO_API
-ARG TURBO_REMOTE_ONLY=false
+
+# Turborepo ve Next.js uyarılarını/telemetrisini kapatıyoruz
+ENV TURBO_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV TURBO_CACHE=remote:rw
+ENV NODE_ENV=production
 
 WORKDIR /app
 
-# ----- KRİTİK DEĞİŞİKLİK -----
-# "out" klasörünü aramak yerine BÜTÜN projeyi doğrudan alıyoruz.
+# Projenin tamamını kopyalıyoruz
 COPY --chown=app:app . /app
-# -----------------------------
 
-ENV TURBO_TEAM=$TURBO_TEAM
-ENV TURBO_TOKEN=$TURBO_TOKEN
-ENV TURBO_API=$TURBO_API
-ENV TURBO_REMOTE_ONLY=$TURBO_REMOTE_ONLY
-
-RUN echo "# Build time .env config!" >> /app/.env && \
+# Geçici .env oluşturma (Build sırasında hata almamak için)
+RUN echo "# Build time .env config!" > /app/.env && \
 	echo "COOKIE_SECRET=undefined" >> /app/.env && \
 	echo "DATABASE_URL=undefined" >> /app/.env && \
 	echo "REDIS_URL=undefined" >> /app/.env && \
-	echo "FILE_FIELD_ADAPTER=local" >> /app/.env && \
-	echo "NEXT_TELEMETRY_DISABLED=1" >> /app/.env && \
-	echo "NODE_ENV=production" >> /app/.env
+	echo "FILE_FIELD_ADAPTER=local" >> /app/.env
 
 RUN chmod +x ./bin/run_condo_domain_tests.sh
 
-# Bağımlılıkları Kur ve Derle
-# ... (Üst kısımlar aynı)
-
-# Telemetry kapatmak ve logu temizlemek için ENV ekleyelim
-ENV TURBO_TELEMETRY_DISABLED=1
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Bağımlılıkları Kur ve Derle
+# Bağımlılıkları Kur ve Build Et
+# Yarn v3+ için cache yolu: /root/.yarn/berry/cache
 RUN --mount=type=cache,target=/root/.yarn/berry/cache \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
-    && yarn config set networkTimeout 300000 \
     && yarn install --immutable \
-    && TURBO_CACHE=remote:rw yarn build \
-    && rm -rf /app/.env  \
+    && yarn build \
+    && rm -f /app/.env \
     && ls -lah /app/
-	
-# Runtime container
+
+# --- Runtime (Çalışma) Katmanı ---
 FROM base
 USER app:app
 WORKDIR /app
+
+# Sadece gerekli build çıktılarını kopyalıyoruz
 COPY --from=builder --chown=app:app /app /app
+
+# Uygulamanın başlatılması (Varsayılan komut)
+# Not: Condo'nun tam çalışma komutunu Procfile veya Dokploy üzerinden override edebilirsiniz.
+CMD ["yarn", "start"]
