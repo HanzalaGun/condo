@@ -34,7 +34,7 @@ RUN echo "COOKIE_SECRET=placeholder\nDATABASE_URL=placeholder\nREDIS_URL=placeho
 RUN --mount=type=cache,target=/root/.yarn/berry/cache \
     --mount=type=cache,target=/app/.turbo \
     set -ex \
-    && yarn config set nmHoistingLimits workspaces \
+    && yarn config set nmHoistingLimits none \
     && yarn install --no-immutable \
     && yarn build \
     && rm -f /app/.env
