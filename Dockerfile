@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1.7
 ARG REGISTRY=docker.io
+# -- Pruner Aşaması (Yeni Eklenecek) --
+FROM node:24-bookworm-slim AS pruner
+WORKDIR /app
+COPY . .
+RUN npx turbo prune --scope=@app/condo --docker
 
 FROM ${REGISTRY}/python:3.14-slim-bookworm AS python
 FROM ${REGISTRY}/node:24-bookworm-slim AS node
@@ -27,7 +32,8 @@ FROM base AS installer
 
 WORKDIR /app
 # Copy pruned monorepo (only package.json + yarn.lock)
-COPY --chown=app:app ./out /app
+#COPY --chown=app:app ./out /app
+COPY --chown=app:app --from=pruner /app/out /app
 # Copy yarn berry
 COPY --chown=app:app ./.yarn /app/.yarn
 COPY --chown=app:app ./.yarnrc.yml /app/.yarnrc.yml
