@@ -53,14 +53,21 @@ RUN echo "# Build time .env config!" >> /app/.env && \
 RUN chmod +x ./bin/run_condo_domain_tests.sh
 
 # Bağımlılıkları Kur ve Derle
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
---mount=type=cache,target=/app/.turbo \
-set -ex \
-&& yarn install --inline-builds \
-&& yarn build \
-&& rm -rf /app/.env \
-&& rm -rf /app/.config /app/.cache /app/.docker \
-&& ls -lah /app/
+# ... (Üst kısımlar aynı)
+
+# Telemetry kapatmak ve logu temizlemek için ENV ekleyelim
+ENV TURBO_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Bağımlılıkları Kur ve Derle
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    --mount=type=cache,target=/app/.turbo \
+    set -ex \
+    && yarn config set networkTimeout 300000 \
+    && yarn install --immutable \
+    && TURBO_CACHE=remote:rw yarn build \
+    && rm -rf /app/.env  \
+    && ls -lah /app/
 	
 # Runtime container
 FROM base
