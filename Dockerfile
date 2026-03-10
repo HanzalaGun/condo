@@ -28,7 +28,14 @@ WORKDIR /app
 COPY --chown=app:app . /app
 
 # .env hazırlığı
-RUN echo "COOKIE_SECRET=placeholder\nDATABASE_URL=placeholder\nREDIS_URL=placeholder\nFILE_FIELD_ADAPTER=local" > /app/.env
+RUN printf "COOKIE_SECRET=placeholder-secret-123456789\n\
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/condo\n\
+REDIS_URL=redis://localhost:6379\n\
+FILE_FIELD_ADAPTER=local\n" > /app/.env \
+    && yarn config set nmHoistingLimits none \
+    && yarn install --no-immutable \
+    && yarn build \
+    && rm -f /app/.env
 
 # Bağımlılıkları Kur ve Build Et
 RUN --mount=type=cache,target=/root/.yarn/berry/cache \
